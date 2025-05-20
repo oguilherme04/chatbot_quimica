@@ -1,0 +1,728 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+    <head>
+        <title>ATOMICHAT - Seu Assistente na Química</title>
+        <link rel="stylesheet" href="{% static 'chatbot/style.css' %}">
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+        <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.85em%22 x=%2250%22 font-size=%2285%22 text-anchor=%22middle%22>🤖</text></svg>">
+        <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+        <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    </head>
+<body>
+    <div class="app-container">
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo-container">
+                    <div class="logo-icon">🤖</div>
+                    <div class="logo-text">AtomiChat</div>
+                </div>
+                <div class="header-buttons">
+                    <button class="btn new-chat-btn" id="newChatBtn">
+                        <i class="fas fa-plus"></i> Novo chat
+                    </button>
+                    <button class="btn-icon theme-toggle" 
+                        id="themeToggle" 
+                        data-tooltip="Mudar tema" 
+                        data-tooltip-position="top">
+                        <i class="fas fa-moon light-icon"></i>
+                        <i class="fas fa-sun dark-icon"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div class="sidebar-content">
+                <div class="history-section">
+                    <div class="section-header">
+                        <h3><i class="fas fa-history"></i> Histórico</h3>
+                        <div class="clear-history-container">
+                            <button class="clear-history-btn" 
+                                data-tooltip="Limpar histórico" 
+                                data-tooltip-position="left">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="chat-history-container">
+                        <ul class="chat-history" id="chatHistory">
+                            {% for chat_id, chat_data in historico_chats.items %}
+                            <li {% if chat_id == request.session.current_chat %}class="active"{% endif %}>
+                                <div class="chat-item">
+                                    <i class="fas fa-comment-dots chat-icon"></i>
+                                    <span class="chat-link" data-chat-id="{{ chat_id }}" title="{{ chat_data.titulo|default:'Novo chat' }}">
+                                        {{ chat_data.titulo|default:"Novo chat" }}
+                                    </span>
+                                    <div class="chat-actions">
+                                        <button class="chat-action-btn delete" data-chat-id="{{ chat_id }}" title="Deletar chat">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </li>
+                            {% empty %}
+                            <li class="empty-history">
+                                <i class="fas fa-inbox"></i>
+                                <span>Nenhum histórico disponível</span>
+                            </li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="user-section">
+                    <div class="user-profile">
+                        <div class="user-avatar">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <div class="user-info">
+                            <span class="username">Usuário</span>
+                            <span class="user-status">Online</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="chat-main {% if messages %}has-messages{% endif %}" id="chatMain">
+            <div class="chat-main-initial">
+                <h1 class="chat-title">SEJA BEM-VINDO!</h1>
+                <p class="chat-subtitle">Qual elemento posso te ajudar a desvendar?</p>
+
+                <div class="input-container-center">
+                    <form method="POST" id="chatForm">
+                        {% csrf_token %}
+                        <div class="input-field">
+                            <textarea name="pergunta" id="perguntaInput" placeholder="Digite sua mensagem..." required rows="1"></textarea>
+                            <div class="input-actions">
+                                <button type="submit" class="btn send-button" id="submitBtn" data-tooltip="Enviar mensagem" data-tooltip-position="top" disabled>
+                                    <i class="fas fa-paper-plane send-icon"></i>
+                                    <div class="loading-square" style="display: none;"></div>
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+
+                <div class="suggested-questions-container" id="suggestedQuestions">
+                    <div class="suggested-questions">
+                        <div class="suggested-question" onclick="document.getElementById('perguntaInput').value = 'Explique a organização da tabela periódica e suas principais características'; document.getElementById('perguntaInput').focus(); updateSendButtonState();">
+                            <div class="suggested-question-title"><i class="fas fa-table"></i> Tabela Periódica</div>
+                            <div class="suggested-question-desc">Explique a organização e características</div>
+                        </div>
+                        
+                        <div class="suggested-question" onclick="document.getElementById('perguntaInput').value = 'Quais são as propriedades do elemento Oxigênio?'; document.getElementById('perguntaInput').focus(); updateSendButtonState();">
+                            <div class="suggested-question-title"><i class="fas fa-atom"></i> Propriedades</div>
+                            <div class="suggested-question-desc">Pergunte sobre propriedades de elementos</div>
+                        </div>
+                        
+                        <div class="suggested-question" onclick="document.getElementById('perguntaInput').value = 'Qual a diferença entre metais, não-metais e gases nobres?'; document.getElementById('perguntaInput').focus(); updateSendButtonState();">
+                            <div class="suggested-question-title"><i class="fas fa-vial"></i> Classificação</div>
+                            <div class="suggested-question-desc">Diferenças entre classes de elementos</div>
+                        </div>
+                        
+                        <div class="suggested-question" onclick="document.getElementById('perguntaInput').value = 'Explique a configuração eletrônica do elemento Ferro'; document.getElementById('perguntaInput').focus(); updateSendButtonState();">
+                            <div class="suggested-question-title"><i class="fas fa-microscope"></i> Configuração</div>
+                            <div class="suggested-question-desc">Configuração eletrônica de elementos</div>
+                        </div>
+                    </div>
+                    <div class="input-footer" id="initialDisclaimer" style="display: none;">
+                        <span class="disclaimer">Gerado por IA, apenas para referência</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-messages-container">
+                <div class="chat-messages" id="chatMessages">
+                    {% for message in messages %}
+                    <div class="message-container {% if message.is_user %}user-message-container{% else %}bot-message-container{% endif %}">
+                        {% if not message.is_user %}
+                        <div class="message-avatar bot-message-avatar">
+                            <div class="avatar-circle">
+                                <i class="fas fa-robot"></i>
+                            </div>
+                        </div>
+                        {% endif %}
+                        <div class="message-content {% if message.is_user %}user-message-content{% else %}bot-message-content{% endif %}">
+                            {% if message.is_user %}
+                                {{ message.content|linebreaksbr }}
+                            {% else %}
+                                {{ message.content|safe }}
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="input-container-center normal-position" id="mainInputContainer">
+                <form method="POST" id="chatFormBottom">
+                    {% csrf_token %}
+                    <div class="input-field">
+                        <textarea name="pergunta" id="perguntaInputBottom" placeholder="Digite sua mensagem..." required rows="1"></textarea>
+                        <div class="input-actions">
+                            <button type="submit" class="btn send-button" id="submitBtnBottom" data-tooltip="Enviar mensagem" data-tooltip-position="top" disabled>
+                                <i class="fas fa-paper-plane send-icon"></i>
+                                <div class="loading-square" style="display: none;"></div>
+                            </button>
+                        </div>
+                    </div>
+                </form>
+                <div class="input-footer">
+                    <span class="disclaimer">Gerado por IA, apenas para referência</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const SwalConfig = Swal.mixin({
+            scrollbarPadding: false,
+            heightAuto: false
+        });
+
+        function updateSendButtonState() {
+            const input1 = document.getElementById('perguntaInput');
+            const input2 = document.getElementById('perguntaInputBottom');
+            const btn1 = document.getElementById('submitBtn');
+            const btn2 = document.getElementById('submitBtnBottom');
+            
+            const hasText1 = input1.value.trim().length > 0;
+            const hasText2 = input2.value.trim().length > 0;
+            
+            btn1.disabled = !hasText1;
+            btn2.disabled = !hasText2;
+        }
+
+        function renderMarkdown(text, isUserMessage = false) {
+            if (!text) return '';
+            
+            let cleanedText = text
+                .replace(/^[\s\u200B-\u200D\uFEFF]+/, '')
+                .replace(/[\s\u200B-\u200D\uFEFF]+$/, '')
+                .replace(/[ \t]+/g, ' ')
+                .replace(/\n\s+/g, '\n');
+            
+            if (isUserMessage) {
+                return cleanedText.replace(/\n/g, '<br>');
+            }
+            
+            const paragraphs = cleanedText.split('\n\n');
+            let firstParagraph = paragraphs[0].trim();
+            let restOfText = paragraphs.slice(1).join('\n\n');
+            let renderedRest = marked.parse(restOfText || '');
+            
+            let result = `<p class="md-paragraph">${firstParagraph}</p>`;
+            if (renderedRest.trim().length > 0) {
+                result += renderedRest;
+            }
+            
+            return result
+                .replace(/<ul>/g, '<ul class="md-list">')
+                .replace(/<ol>/g, '<ol class="md-list">')
+                .replace(/<li>/g, '<li class="md-list-item">')
+                .replace(/<code>/g, '<code class="md-code">')
+                .replace(/<pre>/g, '<pre class="md-pre">')
+                .replace(/<blockquote>/g, '<blockquote class="md-quote">')
+                .replace(/<h1>/g, '<h1 class="md-heading h1">')
+                .replace(/<h2>/g, '<h2 class="md-heading h2">')
+                .replace(/<h3>/g, '<h3 class="md-heading h3">')
+                .replace(/<strong>/g, '<strong class="md-strong">')
+                .replace(/<em>/g, '<em class="md-em">')
+                .replace(/<a /g, '<a class="md-link" ');
+        }
+
+        function addMessage(text, isUser) {
+            const chatMessages = document.getElementById('chatMessages');
+            const messageContainer = document.createElement('div');
+            messageContainer.className = `message-container ${isUser ? 'user-message-container' : 'bot-message-container'}`;
+            
+            if (!isUser) {
+                const avatarDiv = document.createElement('div');
+                avatarDiv.className = 'message-avatar bot-message-avatar';
+                avatarDiv.innerHTML = '<div class="avatar-circle"><i class="fas fa-robot"></i></div>';
+                messageContainer.appendChild(avatarDiv);
+            }
+            
+            const messageContent = document.createElement('div');
+            messageContent.className = `message-content ${isUser ? 'user-message-content' : 'bot-message-content'}`;
+            messageContent.innerHTML = renderMarkdown(text, isUser);
+            
+            messageContainer.appendChild(messageContent);
+            chatMessages.appendChild(messageContainer);
+            
+            setTimeout(() => {
+                messageContainer.scrollIntoView({ behavior: 'smooth', block: 'end' });
+            }, 50);
+        }
+
+        function processExistingMessages() {
+            document.querySelectorAll('.message-content').forEach(element => {
+                const isUser = element.classList.contains('user-message-content');
+                const originalContent = element.innerHTML;
+                element.innerHTML = renderMarkdown(originalContent, isUser);
+            });
+        }
+
+        function showLoadingIndicator() {
+            const chatMessages = document.getElementById('chatMessages');
+            
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'loading-message';
+            loadingDiv.innerHTML = `
+                <div class="loading-avatar">
+                    <i class="fas fa-robot"></i>
+                </div>
+                <div class="loading-content">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">Pensando...</div>
+                </div>
+            `;
+            
+            chatMessages.appendChild(loadingDiv);
+            loadingDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
+            
+            return loadingDiv;
+        }
+
+        function hideLoadingIndicator(loadingElement) {
+            if (loadingElement && loadingElement.parentNode) {
+                loadingElement.parentNode.removeChild(loadingElement);
+            }
+        }
+
+        function criarTituloChat(pergunta) {
+            const palavras = pergunta.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, '')
+                .split(' ')
+                .filter(palavra => palavra.length > 3);
+            
+            const titulo = palavras.slice(0, 5).join(' ');
+            
+            return titulo || "Conversa sobre química";
+        }
+
+        function updateSidebar(chatId, firstMessage) {
+            const chatHistory = document.getElementById('chatHistory');
+            
+            document.querySelectorAll('#chatHistory li').forEach(item => {
+                item.classList.remove('active');
+            });
+            
+            const emptyHistory = chatHistory.querySelector('.empty-history');
+            if (emptyHistory) {
+                emptyHistory.remove();
+            }
+            
+            const existingChat = chatHistory.querySelector(`.chat-link[data-chat-id="${chatId}"]`);
+            if (existingChat) {
+                existingChat.closest('li').classList.add('active');
+                return;
+            }
+            
+            const chatTitle = criarTituloChat(firstMessage);
+            
+            const newChatItem = document.createElement('li');
+            newChatItem.className = 'active';
+            newChatItem.innerHTML = `
+                <div class="chat-item">
+                    <i class="fas fa-comment-dots chat-icon"></i>
+                    <span class="chat-link" data-chat-id="${chatId}" title="${chatTitle}">
+                        ${chatTitle}
+                    </span>
+                    <div class="chat-actions">
+                        <button class="chat-action-btn delete" data-chat-id="${chatId}" title="Deletar chat">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            chatHistory.insertBefore(newChatItem, chatHistory.firstChild);
+            
+            setupChatItemEvents(newChatItem);
+            
+            saveChatToLocalStorage(chatId, chatTitle, firstMessage);
+        }
+
+        function saveChatToLocalStorage(chatId, title, firstMessage) {
+            let chats = JSON.parse(localStorage.getItem('chatHistory')) || {};
+            chats[chatId] = {
+                titulo: title,
+                primeiraMensagem: firstMessage,
+                timestamp: new Date().getTime()
+            };
+            localStorage.setItem('chatHistory', JSON.stringify(chats));
+        }
+
+        function loadChatsFromLocalStorage() {
+            const chats = JSON.parse(localStorage.getItem('chatHistory')) || {};
+            const chatHistory = document.getElementById('chatHistory');
+            
+            const emptyHistory = chatHistory.querySelector('.empty-history');
+            chatHistory.innerHTML = '';
+            
+            if (Object.keys(chats).length === 0) {
+                const emptyItem = document.createElement('li');
+                emptyItem.className = 'empty-history';
+                emptyItem.innerHTML = `
+                    <i class="fas fa-inbox"></i>
+                    <span>Nenhum histórico disponível</span>
+                `;
+                chatHistory.appendChild(emptyItem);
+                return;
+            }
+            
+            const sortedChats = Object.entries(chats).sort((a, b) => b[1].timestamp - a[1].timestamp);
+            
+            sortedChats.forEach(([chatId, chatData]) => {
+                const chatItem = document.createElement('li');
+                chatItem.className = chatId === '{{ request.session.current_chat }}' ? 'active' : '';
+                chatItem.innerHTML = `
+                    <div class="chat-item">
+                        <i class="fas fa-comment-dots chat-icon"></i>
+                        <span class="chat-link" data-chat-id="${chatId}" title="${chatData.titulo}">
+                            ${chatData.titulo}
+                        </span>
+                        <div class="chat-actions">
+                            <button class="chat-action-btn delete" data-chat-id="${chatId}" title="Deletar chat">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
+                chatHistory.appendChild(chatItem);
+                setupChatItemEvents(chatItem);
+            });
+        }
+
+        function setupChatItemEvents(chatItem) {
+            const chatLink = chatItem.querySelector('.chat-link');
+            chatLink.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const chatId = this.getAttribute('data-chat-id');
+                window.location.href = `/switch-chat/${chatId}/`;
+            });
+            
+            chatItem.addEventListener('click', function(e) {
+                if (!e.target.closest('.chat-link') && !e.target.closest('.chat-actions')) {
+                    const chatId = chatItem.querySelector('.chat-link').getAttribute('data-chat-id');
+                    window.location.href = `/switch-chat/${chatId}/`;
+                }
+            });
+            
+            chatItem.querySelector('.chat-action-btn.delete').addEventListener('click', async function(e) {
+                e.stopPropagation();
+                const chatId = this.getAttribute('data-chat-id');
+                
+                const { isConfirmed } = await SwalConfig.fire({
+                    title: 'Deletar chat?',
+                    text: "Esta ação não pode ser desfeita!",
+                    icon: 'warning',
+                    showCancelButton: true,
+                    confirmButtonText: 'Sim, deletar!',
+                    cancelButtonText: 'Cancelar',
+                    confirmButtonColor: '#ff3b30',
+                    focusCancel: true
+                });
+                
+                if (isConfirmed) {
+                    try {
+                        const response = await fetch(`/delete-chat/${chatId}/`, {
+                            method: 'POST',
+                            headers: {
+                                'X-CSRFToken': '{{ csrf_token }}',
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        
+                        if (response.ok) {
+                            let chats = JSON.parse(localStorage.getItem('chatHistory')) || {};
+                            delete chats[chatId];
+                            localStorage.setItem('chatHistory', JSON.stringify(chats));
+                            
+                            chatItem.remove();
+                            
+                            const chatHistory = document.getElementById('chatHistory');
+                            if (chatHistory.querySelectorAll('li').length === 0) {
+                                const emptyItem = document.createElement('li');
+                                emptyItem.className = 'empty-history';
+                                emptyItem.innerHTML = `
+                                    <i class="fas fa-inbox"></i>
+                                    <span>Nenhum histórico disponível</span>
+                                `;
+                                chatHistory.appendChild(emptyItem);
+                            }
+                            
+                            if ('{{ request.session.current_chat }}' === chatId) {
+                                window.location.href = "{% url 'new_chat' %}";
+                            }
+                        } else {
+                            throw new Error('Erro ao deletar chat');
+                        }
+                    } catch (error) {
+                        console.error('Erro:', error);
+                        SwalConfig.fire({
+                            title: 'Erro!',
+                            text: 'Ocorreu um erro ao deletar o chat.',
+                            icon: 'error'
+                        });
+                    }
+                }
+            });
+        }
+
+        function setupFormSubmit(formId, inputId, btnId) {
+            const form = document.getElementById(formId);
+            const input = document.getElementById(inputId);
+            const submitBtn = document.getElementById(btnId);
+            const suggestedQuestions = document.getElementById('suggestedQuestions');
+            const initialDisclaimer = document.getElementById('initialDisclaimer');
+            
+            function adjustTextareaHeight() {
+                input.style.height = 'auto';
+                const newHeight = Math.min(input.scrollHeight, 150);
+                input.style.height = newHeight + 'px';
+                input.style.overflowY = newHeight >= 150 ? 'auto' : 'hidden';
+                
+                if (input.value.trim().length > 0) {
+                    suggestedQuestions.querySelector('.suggested-questions').style.display = 'none';
+                    initialDisclaimer.style.display = 'block';
+                } else {
+                    suggestedQuestions.querySelector('.suggested-questions').style.display = 'grid';
+                    initialDisclaimer.style.display = 'none';
+                }
+                
+                updateSendButtonState();
+            }
+            
+            input.addEventListener('input', adjustTextareaHeight);
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey && input.value.trim().length > 0) {
+                    e.preventDefault();
+                    form.dispatchEvent(new Event('submit'));
+                }
+                adjustTextareaHeight();
+            });
+            
+            form.addEventListener('submit', async function(e) {
+                e.preventDefault();
+                
+                const message = input.value.trim();
+                if (!message) return;
+                
+                document.getElementById('chatMain').classList.add('has-messages');
+                addMessage(message, true);
+                input.value = '';
+                adjustTextareaHeight();
+                
+                const submitBtns = [document.getElementById('submitBtn'), document.getElementById('submitBtnBottom')];
+                submitBtns.forEach(btn => {
+                    btn.disabled = true;
+                    btn.classList.add('loading');
+                    btn.querySelector('.send-icon').style.display = 'none';
+                    btn.querySelector('.loading-square').style.display = 'block';
+                });
+                
+                const loadingElement = showLoadingIndicator();
+                
+                try {
+                    const response = await fetch("{% url 'send_message' %}", {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': '{{ csrf_token }}'
+                        },
+                        body: JSON.stringify({
+                            pergunta: message
+                        })
+                    });
+                    
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.error || 'Erro desconhecido');
+                    }
+                    
+                    const data = await response.json();
+                    
+                    if (data.resposta) {
+                        hideLoadingIndicator(loadingElement);
+                        addMessage(data.resposta, false);
+                        
+                        if (data.chat_id) {
+                            updateSidebar(data.chat_id, message);
+                        }
+                    } else if (data.error) {
+                        hideLoadingIndicator(loadingElement);
+                        addMessage(data.error, false);
+                    }
+                } catch (error) {
+                    hideLoadingIndicator(loadingElement);
+                    addMessage("Desculpe, ocorreu um erro ao processar sua mensagem: " + error.message, false);
+                    console.error("Erro:", error);
+                } finally {
+                    const submitBtns = [document.getElementById('submitBtn'), document.getElementById('submitBtnBottom')];
+                    submitBtns.forEach(btn => {
+                        btn.disabled = false;
+                        btn.classList.remove('loading');
+                        btn.querySelector('.send-icon').style.display = 'block';
+                        btn.querySelector('.loading-square').style.display = 'none';
+                    });
+                    
+                    updateSendButtonState();
+                }
+            });
+        }
+
+        document.getElementById('themeToggle').addEventListener('click', function() {
+            const body = document.body;
+            body.classList.toggle('light-theme');
+            localStorage.setItem('themePreference', body.classList.contains('light-theme') ? 'light' : 'dark');
+            
+            const lightIcon = document.querySelector('.light-icon');
+            const darkIcon = document.querySelector('.dark-icon');
+            
+            if (body.classList.contains('light-theme')) {
+                lightIcon.style.display = 'none';
+                darkIcon.style.display = 'block';
+            } else {
+                lightIcon.style.display = 'block';
+                darkIcon.style.display = 'none';
+            }
+        });
+
+        document.getElementById('newChatBtn').addEventListener('click', function() {
+            fetch("{% url 'new_chat' %}", {
+                method: 'GET',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                }
+            }).then(() => {
+                window.location.href = "{% url 'index' %}";
+            });
+        });
+
+        document.querySelector('.clear-history-btn')?.addEventListener('click', async function(e) {
+            e.stopPropagation();
+            const { isConfirmed } = await SwalConfig.fire({
+                title: 'Limpar todo o histórico?',
+                text: "Esta ação removerá todos os seus chats!",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Limpar tudo',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#ff3b30',
+                focusCancel: true
+            });
+            
+            if (isConfirmed) {
+                try {
+                    const response = await fetch("{% url 'clear_history' %}", {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRFToken': '{{ csrf_token }}'
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        localStorage.removeItem('chatHistory');
+                        
+                        SwalConfig.fire({
+                            title: 'Histórico limpo!',
+                            text: 'Todos os chats foram removidos.',
+                            icon: 'success',
+                            timer: 1500,
+                            showConfirmButton: false
+                        }).then(() => {
+                            window.location.reload();
+                        });
+                    }
+                } catch (error) {
+                    console.error('Erro:', error);
+                    SwalConfig.fire({
+                        title: 'Erro!',
+                        text: 'Ocorreu um erro ao limpar o histórico.',
+                        icon: 'error'
+                    });
+                }
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            processExistingMessages();
+            
+            setupFormSubmit('chatForm', 'perguntaInput', 'submitBtn');
+            setupFormSubmit('chatFormBottom', 'perguntaInputBottom', 'submitBtnBottom');
+            
+            if (document.querySelectorAll('.message-container').length > 0) {
+                document.getElementById('chatMain').classList.add('has-messages');
+            }
+            
+            const bottomInput = document.getElementById('perguntaInputBottom');
+            const initialInput = document.getElementById('perguntaInput');
+            
+            if (document.getElementById('chatMain').classList.contains('has-messages')) {
+                bottomInput.focus();
+            } else {
+                initialInput.focus();
+            }
+            
+            const themePreference = localStorage.getItem('themePreference');
+            const body = document.body;
+            const lightIcon = document.querySelector('.light-icon');
+            const darkIcon = document.querySelector('.dark-icon');
+            
+            if (themePreference === 'light') {
+                body.classList.add('light-theme');
+                lightIcon.style.display = 'none';
+                darkIcon.style.display = 'block';
+            } else {
+                body.classList.remove('light-theme');
+                lightIcon.style.display = 'block';
+                darkIcon.style.display = 'none';
+            }
+            
+            loadChatsFromLocalStorage();
+            
+            document.querySelectorAll('#chatHistory li').forEach(chatItem => {
+                setupChatItemEvents(chatItem);
+            });
+            
+            setTimeout(() => {
+                document.body.classList.add('loaded');
+            }, 100);
+
+            const chatMessages = document.getElementById('chatMessages');
+            if (chatMessages) {
+                setTimeout(() => {
+                    chatMessages.scrollTop = chatMessages.scrollHeight;
+                }, 200);
+            }
+            
+            document.getElementById('perguntaInput').addEventListener('input', updateSendButtonState);
+            document.getElementById('perguntaInputBottom').addEventListener('input', updateSendButtonState);
+            
+            updateSendButtonState();
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+                const activeForm = document.getElementById('chatMain').classList.contains('has-messages') 
+                    ? document.getElementById('chatFormBottom') 
+                    : document.getElementById('chatForm');
+                if (activeForm) {
+                    const input = activeForm.querySelector('textarea');
+                    if (input.value.trim().length > 0) {
+                        activeForm.dispatchEvent(new Event('submit'));
+                    }
+                }
+            }
+            
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                document.getElementById('newChatBtn').click();
+            }
+        });
+    </script>
+</body>
+</html>
